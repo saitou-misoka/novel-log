@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>作業量計算ツール</title>
+    <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'><rect width='180' height='180' fill='%23fa8072'/><text x='50%25' y='55%25' font-family='sans-serif' font-size='100' text-anchor='middle' dominant-baseline='middle'>📝</text></svg>">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <style>
+        :root {
+            --primary: #fa8072; /* サーモンコーラル色 */
+            --bg: #f9f9fb;
+            --card: #ffffff;
+            --text: #2d3436;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 500px;
+        }
+        h1, h2 {
+            text-align: center;
+            color: var(--primary);
+        }
+        .card {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #e06e61;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .stat-box {
+            background: #f1f2f6;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-top: 5px;
+        }
+        .history-item {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+        }
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #ff7675;
+            cursor: pointer;
+            font-size: 0.8rem;
+            width: auto;
+            padding: 0;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📝 作業量計算ツール</h1>
+
+    <div class="card">
+        <h2>本日の記録</h2>
+        <div class="form-group">
+            <label>日付</label>
+            <input type="date" id="date">
+        </div>
+        <div class="form-group">
+            <label>実働時間（分）</label>
+            <input type="number" id="minutes" placeholder="例: 90" min="1">
+        </div>
+        <div class="form-group">
+            <label>書いた文字数</label>
+            <input type="number" id="chars" placeholder="例: 1500" min="1">
+        </div>
+        <button onclick="saveLog()">記録を保存する</button>
+    </div>
+
+    <div class="card">
+        <h2>あなたの分析データ</h2>
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div>1日平均文字数</div>
+                <div class="stat-value" id="avg-day">0 文字</div>
+            </div>
+            <div class="stat-box">
+                <div>時速（1時間平均）</div>
+                <div class="stat-value" id="avg-hour">0 文字</div>
+            </div>
+        </div>
+        
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+        <label>あと何文字必要？（目標逆算）</label>
+        <div style="display: flex; gap: 10px;">
+            <input type="number" id="target-chars" placeholder="例: 10000" oninput="calcEstimate()">
+        </div>
+        <div id="estimate-result" style="margin-top: 10px; font-size: 0.9rem; color: #666; text-align: center; font-weight: bold;"></div>
+    </div>
+
+    <div class="card">
+        <h2>これまでの履歴</h2>
+        <div id="history-list"></div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('date').valueAsDate = new Date();
+    let logs = JSON.parse(localStorage.getItem('novel_logs')) || [];
+    updateUI();
+
+    function saveLog() {
+        const date = document.getElementById('date').value;
+        const minutes = parseInt(document.getElementById('minutes').value);
+        const chars = parseInt(document.getElementById('chars').value);
+
+        if (!date || !minutes || !chars) {
+            alert('全部入力してね！');
+            return;
+        }
+
+        const newLog = { id: Date.now(), date, minutes, chars };
+        logs.push(newLog);
+        localStorage.setItem('novel_logs', JSON.stringify(logs));
+
+        document.getElementById('minutes').value = '';
+        document.getElementById('chars').value = '';
+
+        updateUI();
+    }
+
+    function deleteLog(id) {
+        if(confirm('この記録を消してもいい？')) {
+            logs = logs.filter(log => log.id !== id);
+            localStorage.setItem('novel_logs', JSON.stringify(logs));
+            updateUI();
+        }
+    }
+
+    function updateUI() {
+        const historyList = document.getElementById('history-list');
+        historyList.innerHTML = '';
+
+        if (logs.length === 0) {
+            historyList.innerHTML = '<p style="text-align:center; color:#999;">まだ記録がありません</p>';
+            document.getElementById('avg-day').innerText = '0 文字';
+            document.getElementById('avg-hour').innerText = '0 文字';
+            document.getElementById('estimate-result').innerText = '';
+            return;
+        }
+
+        let totalMinutes = 0;
+        let totalChars = 0;
+
+        [...logs].reverse().forEach(log => {
+            totalMinutes += log.minutes;
+            totalChars += log.chars;
+
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            item.innerHTML = `
+                <div><strong>${log.date}</strong><br>${log.minutes}分で ${log.chars}文字</div>
+                <button class="delete-btn" onclick="deleteLog(${log.id})">削除</button>
+            `;
+            historyList.appendChild(item);
+        });
+
+        const avgDay = Math.round(totalChars / logs.length);
+        const avgHour = totalMinutes > 0 ? Math.round((totalChars / totalMinutes) * 60) : 0;
+
+        document.getElementById('avg-day').innerText = avgDay.toLocaleString() + ' 文字';
+        document.getElementById('avg-hour').innerText = avgHour.toLocaleString() + ' 文字';
+
+        calcEstimate();
+    }
+
+    function calcEstimate() {
+        const target = parseInt(document.getElementById('target-chars').value);
+        const resultDiv = document.getElementById('estimate-result');
+        
+        if (!target || logs.length === 0) {
+            resultDiv.innerText = '';
+            return;
+        }
+
+        let totalMinutes = 0;
+        let totalChars = 0;
+        logs.forEach(log => {
+            totalMinutes += log.minutes;
+            totalChars += log.chars;
+        });
+
+        const currentSpeed = totalChars / totalMinutes;
+        const needMinutes = target / currentSpeed;
+        const needHours = (needMinutes / 60).toFixed(1);
+        
+        const avgDayChars = totalChars / logs.length;
+        const needDays = Math.ceil(target / avgDayChars);
+
+        resultDiv.innerHTML = `🏁 あと <span style="color:var(--primary); font-size:1.1rem;">${needHours}時間</span> （約 ${needDays}日）の作業が必要です！`;
+    }
+</script>
+
+</body>
+</html>
