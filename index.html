@@ -71,6 +71,12 @@
         button:hover {
             background-color: #e06e61;
         }
+        .btn-secondary {
+            background-color: #747d8c;
+        }
+        .btn-secondary:hover {
+            background-color: #57606f;
+        }
         .stats-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -95,6 +101,7 @@
             display: flex;
             justify-content: space-between;
             font-size: 0.9rem;
+            align-items: center;
         }
         .history-item:last-child {
             border-bottom: none;
@@ -108,6 +115,15 @@
             width: auto;
             padding: 0;
             text-align: right;
+        }
+        .backup-zone {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        #file-input {
+            display: none;
         }
     </style>
 </head>
@@ -156,6 +172,14 @@
 
     <div class="card">
         <h2>これまでの履歴</h2>
+        
+        <div class="backup-zone">
+            <button class="btn-secondary" onclick="exportBackup()">📥 ログを保存</button>
+            <button class="btn-secondary" onclick="document.getElementById('file-input').click()">📤 ログを復元</button>
+            <input type="file" id="file-input" accept=".json" onchange="importBackup(event)">
+        </div>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+
         <div id="history-list"></div>
     </div>
 </div>
@@ -254,6 +278,53 @@
         const needDays = Math.ceil(target / avgDayChars);
 
         resultDiv.innerHTML = `🏁 あと <span style="color:var(--primary); font-size:1.1rem;">${needHours}時間</span> （約 ${needDays}日）の作業が必要です！`;
+    }
+
+    // バックアップ書き出し機能
+    function exportBackup() {
+        if (logs.length === 0) {
+            alert('保存するデータがまだないよ！');
+            return;
+        }
+        const dataStr = JSON.stringify(logs, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `novel_log_backup_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // バックアップ読み込み機能
+    function importBackup(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedLogs = JSON.parse(e.target.result);
+                if (Array.isArray(importedLogs)) {
+                    if (confirm('データを読み込みます。今の記録に上書きしてもいい？')) {
+                        logs = importedLogs;
+                        localStorage.setItem('novel_logs', JSON.stringify(logs));
+                        updateUI();
+                        alert('データの復元が完了したよ！');
+                    }
+                } else {
+                    alert('正しいバックアップファイルじゃないみたい……');
+                }
+            } catch (err) {
+                alert('ファイルの読み込みに失敗しちゃいました');
+            }
+        };
+        reader.readAsText(file);
+        // 同じファイルを連続で選んでも反応するようにリセット
+        event.target.value = '';
     }
 </script>
 
